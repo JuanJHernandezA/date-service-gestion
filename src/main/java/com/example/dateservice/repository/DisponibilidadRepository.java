@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface DisponibilidadRepository extends JpaRepository<Disponibilidad, Long> {
 
-    // Busca una disponibilidad que cubra desde horaInicio <= horaInicioCita AND horaFin >= horaFinCita
+   
     Optional<Disponibilidad> findFirstByIdPsicologoAndFechaAndHoraInicioLessThanEqualAndHoraFinGreaterThanEqual(
             Long idPsicologo,
             LocalDate fecha,
@@ -15,6 +15,5 @@ public interface DisponibilidadRepository extends JpaRepository<Disponibilidad, 
             LocalTime horaFinCita
     );
 
-    // (opcional) otros métodos útiles, por ejemplo para listar disponibilidades por psicólogo y fecha:
-    // List<Disponibilidad> findByIdPsicologoAndFecha(Long idPsicologo, LocalDate fecha);
+   
 }

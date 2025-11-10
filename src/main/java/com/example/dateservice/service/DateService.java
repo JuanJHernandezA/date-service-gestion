@@ -19,7 +19,7 @@ public class DateService {
 
     @Transactional
     public void addDate(Date nuevaCita) {
-        System.out.println("➡️ Intentando agendar cita: " + nuevaCita);
+        System.out.println("Intentando agendar cita: " + nuevaCita);
 
         // Buscar disponibilidad que cubra completamente la franja de la cita
         List<Disponibilidad> resultados = entityManager.createQuery(
@@ -38,16 +38,16 @@ public class DateService {
         .getResultList();
 
         if (resultados.isEmpty()) {
-            System.out.println("❌ No existe disponibilidad para esta cita.");
+            System.out.println("No existe disponibilidad para esta cita.");
             throw new RuntimeException("No hay disponibilidad para la hora seleccionada.");
         }
 
         Disponibilidad disp = resultados.get(0);
-        System.out.println("✅ Disponibilidad encontrada: " + disp);
+        System.out.println("Disponibilidad encontrada: " + disp);
 
         // Eliminar la disponibilidad actual (ya no es válida tal como está)
         entityManager.remove(disp);
-        System.out.println("🗑️ Disponibilidad eliminada: " + disp.getId());
+        System.out.println("Disponibilidad eliminada: " + disp.getId());
 
         // Crear nuevas disponibilidades si sobran espacios antes o después
         if (disp.getHoraInicio().isBefore(nuevaCita.getHoraInicio())) {
@@ -58,7 +58,7 @@ public class DateService {
                     nuevaCita.getHoraInicio()
             );
             entityManager.persist(antes);
-            System.out.println("🟩 Nueva disponibilidad (antes): " + antes);
+            System.out.println(" Nueva disponibilidad (antes): " + antes);
         }
 
         if (disp.getHoraFin().isAfter(nuevaCita.getHoraFin())) {
@@ -69,12 +69,12 @@ public class DateService {
                     disp.getHoraFin()
             );
             entityManager.persist(despues);
-            System.out.println("🟩 Nueva disponibilidad (después): " + despues);
+            System.out.println("Nueva disponibilidad (después): " + despues);
         }
 
         // Guardar la nueva cita
         entityManager.persist(nuevaCita);
-        System.out.println("📅 Cita registrada exitosamente: " + nuevaCita);
+        System.out.println("Cita registrada exitosamente: " + nuevaCita);
     }
 
     public List<Date> listarCitasPorPsicologo(Long idPsicologo, LocalDate fecha) {

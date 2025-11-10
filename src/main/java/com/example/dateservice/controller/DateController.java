@@ -13,24 +13,24 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/dates")
-@CrossOrigin(origins = "*") // 🔓 Permite peticiones desde cualquier origen (útil para frontend)
+@CrossOrigin(origins = "*") 
 public class DateController {
 
     @Autowired
     private DateService dateService;
 
-    // 🔹 1. Agendar una nueva cita
+    
     @PostMapping("/agendar")
     public ResponseEntity<String> agendarCita(@RequestBody Date nuevaCita) {
         try {
             dateService.addDate(nuevaCita);
-            return ResponseEntity.ok("✅ Cita agendada correctamente");
+            return ResponseEntity.ok("Cita agendada correctamente");
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("❌ Error al agendar cita: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Error al agendar cita: " + e.getMessage());
         }
     }
 
-    // 🔹 2. Listar citas de un psicólogo en una fecha específica
+
     @GetMapping("/citas")
     public ResponseEntity<List<Date>> listarCitas(
             @RequestParam Long idPsicologo,
@@ -40,7 +40,6 @@ public class DateController {
         return ResponseEntity.ok(citas);
     }
 
-    // 🔹 3. Listar disponibilidades de un psicólogo en una fecha específica
     @GetMapping("/disponibilidades")
     public ResponseEntity<List<Disponibilidad>> listarDisponibilidades(
             @RequestParam Long idPsicologo,

@@ -18,7 +18,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@Import(DateService.class) // Importa el servicio real con EntityManager
+@Import(DateService.class) 
 @Transactional
 class DateServiceTest {
 
@@ -32,7 +32,7 @@ class DateServiceTest {
 
     @BeforeEach
     void setup() {
-        // Crear disponibilidad inicial (9:00 - 13:00)
+       
         Disponibilidad disponibilidad = new Disponibilidad(
                 idPsicologo,
                 LocalDate.of(2025, 11, 10),
@@ -44,7 +44,7 @@ class DateServiceTest {
 
     @Test
     void testAgendarCitaDivideDisponibilidad() {
-        // Cita de 10:00 a 11:00
+       
         Date cita = new Date(
                 idPsicologo,
                 100L,
@@ -55,14 +55,14 @@ class DateServiceTest {
 
         dateService.addDate(cita);
 
-        // 🔹 Verificar que se guardó la cita
+        
         List<Date> citas = entityManager
                 .createQuery("SELECT c FROM Date c", Date.class)
                 .getResultList();
 
         assertEquals(1, citas.size(), "Debe haber una cita agendada");
 
-        // 🔹 Verificar que se crearon dos nuevas disponibilidades
+        
         List<Disponibilidad> disponibilidades = entityManager
                 .createQuery("SELECT d FROM Disponibilidad d ORDER BY d.horaInicio", Disponibilidad.class)
                 .getResultList();
@@ -78,7 +78,7 @@ class DateServiceTest {
 
     @Test
     void testAgendarCitaSinDisponibilidadLanzaExcepcion() {
-        // Cita fuera del rango disponible
+      
         Date cita = new Date(
                 idPsicologo,
                 200L,
@@ -93,7 +93,7 @@ class DateServiceTest {
 
     @Test
     void testAgendarCitaEliminaDisponibilidadExacta() {
-        // Cita que ocupa todo el rango 9:00–13:00
+      
         Date cita = new Date(
                 idPsicologo,
                 300L,
@@ -104,13 +104,13 @@ class DateServiceTest {
 
         dateService.addDate(cita);
 
-        // 🔹 Verificar que se guardó la cita
+       
         List<Date> citas = entityManager
                 .createQuery("SELECT c FROM Date c", Date.class)
                 .getResultList();
         assertEquals(1, citas.size());
 
-        // 🔹 Verificar que no quedan disponibilidades
+        
         List<Disponibilidad> disponibilidades = entityManager
                 .createQuery("SELECT d FROM Disponibilidad d", Disponibilidad.class)
                 .getResultList();
