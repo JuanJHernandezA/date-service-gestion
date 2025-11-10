@@ -32,7 +32,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Rutas públicas del microservicio de citas
                         .requestMatchers(
-                                "/dates/**",
+                                "/api/dates/**",
                                 "/actuator/**",
                                 "/error",
                                 "/swagger-ui/**",

@@ -5,8 +5,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "dates")
-public class Date {
+@Table(name = "availability")
+public class Disponibilidad {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -14,9 +14,6 @@ public class Date {
 
     @Column(nullable = false)
     private Long idPsicologo;
-
-    @Column(nullable = false)
-    private Long idCliente;
 
     @Column(nullable = false)
     private LocalDate fecha;
@@ -27,12 +24,11 @@ public class Date {
     @Column(nullable = false)
     private LocalTime horaFin;
 
-    public Date() {
+    public Disponibilidad() {
     }
 
-    public Date(Long idPsicologo, Long idCliente, LocalDate fecha, LocalTime horaInicio, LocalTime horaFin) {
+    public Disponibilidad(Long idPsicologo, LocalDate fecha, LocalTime horaInicio, LocalTime horaFin) {
         this.idPsicologo = idPsicologo;
-        this.idCliente = idCliente;
         this.fecha = fecha;
         this.horaInicio = horaInicio;
         this.horaFin = horaFin;
@@ -54,14 +50,6 @@ public class Date {
 
     public void setIdPsicologo(Long idPsicologo) {
         this.idPsicologo = idPsicologo;
-    }
-
-    public Long getIdCliente() {
-        return idCliente;
-    }
-
-    public void setIdCliente(Long idCliente) {
-        this.idCliente = idCliente;
     }
 
     public LocalDate getFecha() {
@@ -90,10 +78,9 @@ public class Date {
 
     @Override
     public String toString() {
-        return "Date{" +
+        return "Disponibilidad{" +
                 "id=" + id +
                 ", idPsicologo=" + idPsicologo +
-                ", idCliente=" + idCliente +
                 ", fecha=" + fecha +
                 ", horaInicio=" + horaInicio +
                 ", horaFin=" + horaFin +
