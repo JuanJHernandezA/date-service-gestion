@@ -97,6 +97,54 @@ public class DateService {
         .getResultList();
     }
 
+    @Transactional
+    public Disponibilidad addDisponibilidad(Disponibilidad nuevaDisponibilidad) {
+        System.out.println("Intentando agregar disponibilidad: " + nuevaDisponibilidad);
+
+        // Validaciones básicas
+        if (nuevaDisponibilidad.getIdPsicologo() == null) {
+            throw new RuntimeException("El ID del psicólogo es requerido.");
+        }
+
+        if (nuevaDisponibilidad.getFecha() == null) {
+            throw new RuntimeException("La fecha es requerida.");
+        }
+
+        if (nuevaDisponibilidad.getHoraInicio() == null || nuevaDisponibilidad.getHoraFin() == null) {
+            throw new RuntimeException("La hora de inicio y fin son requeridas.");
+        }
+
+        if (!nuevaDisponibilidad.getHoraInicio().isBefore(nuevaDisponibilidad.getHoraFin())) {
+            throw new RuntimeException("La hora de inicio debe ser anterior a la hora de fin.");
+        }
+
+        // Verificar si ya existe una disponibilidad que se solape
+        List<Disponibilidad> disponibilidadesExistentes = entityManager.createQuery(
+                "SELECT d FROM Disponibilidad d " +
+                        "WHERE d.idPsicologo = :idPsicologo " +
+                        "AND d.fecha = :fecha " +
+                        "AND ((d.horaInicio <= :horaInicio AND d.horaFin > :horaInicio) " +
+                        "OR (d.horaInicio < :horaFin AND d.horaFin >= :horaFin) " +
+                        "OR (d.horaInicio >= :horaInicio AND d.horaFin <= :horaFin))",
+                Disponibilidad.class
+        )
+        .setParameter("idPsicologo", nuevaDisponibilidad.getIdPsicologo())
+        .setParameter("fecha", nuevaDisponibilidad.getFecha())
+        .setParameter("horaInicio", nuevaDisponibilidad.getHoraInicio())
+        .setParameter("horaFin", nuevaDisponibilidad.getHoraFin())
+        .getResultList();
+
+        if (!disponibilidadesExistentes.isEmpty()) {
+            System.out.println("Ya existe una disponibilidad que se solapa en este horario.");
+            throw new RuntimeException("Ya existe una disponibilidad que se solapa en este horario.");
+        }
+
+        // Guardar la nueva disponibilidad
+        entityManager.persist(nuevaDisponibilidad);
+        System.out.println("Disponibilidad agregada exitosamente: " + nuevaDisponibilidad);
+
+        return nuevaDisponibilidad;
+    }
     
 }
 
