@@ -2,9 +2,12 @@ package com.example.dateservice.service;
 
 import com.example.dateservice.entity.Date;
 import com.example.dateservice.entity.Disponibilidad;
+import com.example.dateservice.repository.DateRepository;
+import com.example.dateservice.repository.DisponibilidadRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -16,6 +19,12 @@ public class DateService {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    @Autowired
+    private DateRepository dateRepository;
+
+    @Autowired
+    private DisponibilidadRepository disponibilidadRepository;
 
     @Transactional
     public void addDate(Date nuevaCita) {
@@ -77,6 +86,14 @@ public class DateService {
         System.out.println("Cita registrada exitosamente: " + nuevaCita);
     }
 
+    public void cancelarCita(Long id) {
+        Date cita = dateRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("La cita no existe"));
+
+        dateRepository.delete(cita);
+    }
+
+
     public List<Date> listarCitasPorPsicologo(Long idPsicologo, LocalDate fecha) {
         return entityManager.createQuery(
                 "SELECT c FROM Date c WHERE c.idPsicologo = :idPsicologo AND c.fecha = :fecha",
@@ -95,6 +112,38 @@ public class DateService {
         .setParameter("idPsicologo", idPsicologo)
         .setParameter("fecha", fecha)
         .getResultList();
+    }
+
+    public List<Date> listarTodasLasCitas() {
+        return dateRepository.findAll();
+    }
+
+    public List<Date> listarCitasPorCliente(Long idCliente) {
+        return entityManager.createQuery(
+                "SELECT c FROM Date c WHERE c.idCliente = :idCliente ORDER BY c.fecha DESC, c.horaInicio DESC",
+                Date.class
+        )
+        .setParameter("idCliente", idCliente)
+        .getResultList();
+    }
+
+    @Transactional
+    public Disponibilidad crearDisponibilidad(Disponibilidad disponibilidad) {
+        return disponibilidadRepository.save(disponibilidad);
+    }
+
+    @Transactional
+    public void crearDisponibilidadesMasivas(Long idPsicologo, LocalDate fechaInicio, LocalDate fechaFin, LocalTime horaInicio, LocalTime horaFin) {
+        LocalDate fechaActual = fechaInicio;
+        while (!fechaActual.isAfter(fechaFin)) {
+            // Solo crear disponibilidades para días laborables (lunes a viernes)
+            int diaSemana = fechaActual.getDayOfWeek().getValue();
+            if (diaSemana >= 1 && diaSemana <= 5) { // 1 = Lunes, 5 = Viernes
+                Disponibilidad disp = new Disponibilidad(idPsicologo, fechaActual, horaInicio, horaFin);
+                disponibilidadRepository.save(disp);
+            }
+            fechaActual = fechaActual.plusDays(1);
+        }
     }
 
     
