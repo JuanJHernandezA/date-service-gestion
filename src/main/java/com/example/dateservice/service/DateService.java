@@ -127,6 +127,10 @@ public class DateService {
         .getResultList();
     }
 
+    public List<Disponibilidad> listarTodasLasDisponibilidades() {
+        return disponibilidadRepository.findAll();
+    }
+
     @Transactional
     public Disponibilidad crearDisponibilidad(Disponibilidad disponibilidad) {
         return disponibilidadRepository.save(disponibilidad);
@@ -152,7 +156,14 @@ public class DateService {
         Disponibilidad disponibilidadExistente = disponibilidadRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("La disponibilidad no existe"));
 
-        // Validar que no haya citas agendadas que se solapen con el nuevo horario
+        // Validar que horaInicio sea menor que horaFin
+        if (disponibilidadActualizada.getHoraInicio().isAfter(disponibilidadActualizada.getHoraFin()) ||
+            disponibilidadActualizada.getHoraInicio().equals(disponibilidadActualizada.getHoraFin())) {
+            throw new RuntimeException("La hora de inicio debe ser anterior a la hora de fin");
+        }
+
+        // Obtener todas las citas del psicólogo en ese día que se solapan con el nuevo rango de disponibilidad
+        // Solo verificamos citas que se solapan, no todas las citas del día
         List<Date> citasSolapadas = entityManager.createQuery(
                 "SELECT c FROM Date c " +
                         "WHERE c.idPsicologo = :idPsicologo " +
@@ -166,14 +177,21 @@ public class DateService {
         .setParameter("horaFin", disponibilidadActualizada.getHoraFin())
         .getResultList();
 
-        if (!citasSolapadas.isEmpty()) {
-            throw new RuntimeException("No se puede modificar el horario porque existen citas agendadas en ese rango de tiempo");
-        }
-
-        // Validar que horaInicio sea menor que horaFin
-        if (disponibilidadActualizada.getHoraInicio().isAfter(disponibilidadActualizada.getHoraFin()) ||
-            disponibilidadActualizada.getHoraInicio().equals(disponibilidadActualizada.getHoraFin())) {
-            throw new RuntimeException("La hora de inicio debe ser anterior a la hora de fin");
+        // Validar que todas las citas que se solapan estén completamente dentro del nuevo rango
+        // Esto permite extender la disponibilidad (aumentar horas) siempre que todas las citas solapadas estén dentro
+        for (Date cita : citasSolapadas) {
+            // Verificar si la cita está completamente dentro del nuevo rango
+            // La cita debe empezar después o igual al inicio y terminar antes o igual al fin
+            boolean citaDentroDelRango = (cita.getHoraInicio().isAfter(disponibilidadActualizada.getHoraInicio()) || 
+                                          cita.getHoraInicio().equals(disponibilidadActualizada.getHoraInicio())) &&
+                                         (cita.getHoraFin().isBefore(disponibilidadActualizada.getHoraFin()) || 
+                                          cita.getHoraFin().equals(disponibilidadActualizada.getHoraFin()));
+            
+            if (!citaDentroDelRango) {
+                throw new RuntimeException("No se puede modificar el horario porque existe una cita agendada que no está completamente dentro del nuevo rango. La cita está programada de " + 
+                        cita.getHoraInicio() + " a " + cita.getHoraFin() + ". El nuevo rango es de " +
+                        disponibilidadActualizada.getHoraInicio() + " a " + disponibilidadActualizada.getHoraFin());
+            }
         }
 
         disponibilidadExistente.setIdPsicologo(disponibilidadActualizada.getIdPsicologo());

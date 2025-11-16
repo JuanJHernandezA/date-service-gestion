@@ -42,11 +42,23 @@ public class DateController {
 
     @GetMapping("/disponibilidades")
     public ResponseEntity<List<Disponibilidad>> listarDisponibilidades(
-            @RequestParam Long idPsicologo,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha
+            @RequestParam(required = false) Long idPsicologo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha
     ) {
-        List<Disponibilidad> disponibilidades = dateService.listarDisponibilidades(idPsicologo, fecha);
-        return ResponseEntity.ok(disponibilidades);
+        // Si no se proporcionan filtros, retornar todas las disponibilidades
+        if (idPsicologo == null && fecha == null) {
+            List<Disponibilidad> todasLasDisponibilidades = dateService.listarTodasLasDisponibilidades();
+            return ResponseEntity.ok(todasLasDisponibilidades);
+        }
+        // Si se proporcionan ambos filtros, usar el método existente
+        if (idPsicologo != null && fecha != null) {
+            List<Disponibilidad> disponibilidades = dateService.listarDisponibilidades(idPsicologo, fecha);
+            return ResponseEntity.ok(disponibilidades);
+        }
+        // Si solo se proporciona un filtro, retornar todas y filtrar manualmente (o crear métodos específicos)
+        // Por ahora, retornamos todas si falta algún parámetro
+        List<Disponibilidad> todasLasDisponibilidades = dateService.listarTodasLasDisponibilidades();
+        return ResponseEntity.ok(todasLasDisponibilidades);
     }
 
     @DeleteMapping("/cancelar/{id}")
@@ -123,5 +135,11 @@ public class DateController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Error al actualizar disponibilidad: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/disponibilidades/todas")
+    public ResponseEntity<List<Disponibilidad>> listarTodasLasDisponibilidades() {
+        List<Disponibilidad> disponibilidades = dateService.listarTodasLasDisponibilidades();
+        return ResponseEntity.ok(disponibilidades);
     }
 }
