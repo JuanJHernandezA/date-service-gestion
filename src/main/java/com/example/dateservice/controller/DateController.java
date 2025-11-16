@@ -111,4 +111,17 @@ public class DateController {
             return ResponseEntity.badRequest().body("Error al crear disponibilidades: " + e.getMessage());
         }
     }
+
+    @PutMapping("/disponibilidades/{id}")
+    public ResponseEntity<?> actualizarDisponibilidad(
+            @PathVariable Long id,
+            @RequestBody Disponibilidad disponibilidadActualizada
+    ) {
+        try {
+            Disponibilidad disponibilidadActualizadaResult = dateService.actualizarDisponibilidad(id, disponibilidadActualizada);
+            return ResponseEntity.ok(disponibilidadActualizadaResult);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error al actualizar disponibilidad: " + e.getMessage());
+        }
+    }
 }

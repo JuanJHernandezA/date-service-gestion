@@ -146,6 +146,44 @@ public class DateService {
         }
     }
 
+    @Transactional
+    public Disponibilidad actualizarDisponibilidad(Long id, Disponibilidad disponibilidadActualizada) {
+
+        Disponibilidad disponibilidadExistente = disponibilidadRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("La disponibilidad no existe"));
+
+        // Validar que no haya citas agendadas que se solapen con el nuevo horario
+        List<Date> citasSolapadas = entityManager.createQuery(
+                "SELECT c FROM Date c " +
+                        "WHERE c.idPsicologo = :idPsicologo " +
+                        "AND c.fecha = :fecha " +
+                        "AND ((c.horaInicio < :horaFin AND c.horaFin > :horaInicio))",
+                Date.class
+        )
+        .setParameter("idPsicologo", disponibilidadActualizada.getIdPsicologo())
+        .setParameter("fecha", disponibilidadActualizada.getFecha())
+        .setParameter("horaInicio", disponibilidadActualizada.getHoraInicio())
+        .setParameter("horaFin", disponibilidadActualizada.getHoraFin())
+        .getResultList();
+
+        if (!citasSolapadas.isEmpty()) {
+            throw new RuntimeException("No se puede modificar el horario porque existen citas agendadas en ese rango de tiempo");
+        }
+
+        // Validar que horaInicio sea menor que horaFin
+        if (disponibilidadActualizada.getHoraInicio().isAfter(disponibilidadActualizada.getHoraFin()) ||
+            disponibilidadActualizada.getHoraInicio().equals(disponibilidadActualizada.getHoraFin())) {
+            throw new RuntimeException("La hora de inicio debe ser anterior a la hora de fin");
+        }
+
+        disponibilidadExistente.setIdPsicologo(disponibilidadActualizada.getIdPsicologo());
+        disponibilidadExistente.setFecha(disponibilidadActualizada.getFecha());
+        disponibilidadExistente.setHoraInicio(disponibilidadActualizada.getHoraInicio());
+        disponibilidadExistente.setHoraFin(disponibilidadActualizada.getHoraFin());
+
+        return disponibilidadRepository.save(disponibilidadExistente);
+    }
+
     
 }
 
