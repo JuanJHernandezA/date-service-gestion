@@ -153,4 +153,14 @@ public class DateController {
         List<Disponibilidad> disponibilidades = dateService.listarTodasLasDisponibilidades();
         return ResponseEntity.ok(disponibilidades);
     }
+
+    @PostMapping("/disponibilidades")
+    public ResponseEntity<?> agregarDisponibilidad(@RequestBody Disponibilidad nuevaDisponibilidad) {
+        try {
+            Disponibilidad disponibilidadCreada = dateService.addDisponibilidad(nuevaDisponibilidad);
+            return ResponseEntity.ok(disponibilidadCreada);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error al agregar disponibilidad: " + e.getMessage());
+        }
+    }
 }
