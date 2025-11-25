@@ -6,13 +6,16 @@ import com.example.dateservice.repository.DateRepository;
 import com.example.dateservice.repository.DisponibilidadRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DateService {
@@ -116,6 +119,40 @@ public class DateService {
 
     public List<Date> listarTodasLasCitas() {
         return dateRepository.findAll();
+    }
+
+    public List<Disponibilidad> filtrarDisponibilidades(Long idPsicologo, LocalDate fecha, Integer mes, Integer anio) {
+        StringBuilder jpql = new StringBuilder("SELECT d FROM Disponibilidad d WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
+
+        if (idPsicologo != null) {
+            jpql.append(" AND d.idPsicologo = :idPsicologo");
+            params.put("idPsicologo", idPsicologo);
+        }
+
+        if (fecha != null) {
+            jpql.append(" AND d.fecha = :fecha");
+            params.put("fecha", fecha);
+        }
+
+        if (mes != null) {
+            if (mes < 1 || mes > 12) {
+                throw new RuntimeException("El mes debe estar entre 1 y 12");
+            }
+            jpql.append(" AND MONTH(d.fecha) = :mes");
+            params.put("mes", mes);
+        }
+
+        if (anio != null) {
+            jpql.append(" AND YEAR(d.fecha) = :anio");
+            params.put("anio", anio);
+        }
+
+        jpql.append(" ORDER BY d.fecha ASC, d.horaInicio ASC");
+
+        TypedQuery<Disponibilidad> query = entityManager.createQuery(jpql.toString(), Disponibilidad.class);
+        params.forEach(query::setParameter);
+        return query.getResultList();
     }
 
     public List<Date> listarCitasPorCliente(Long idCliente) {

@@ -61,6 +61,17 @@ public class DateController {
         return ResponseEntity.ok(todasLasDisponibilidades);
     }
 
+    @GetMapping("/disponibilidades/filtrar")
+    public ResponseEntity<List<Disponibilidad>> filtrarDisponibilidades(
+            @RequestParam(required = false) Long idPsicologo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha,
+            @RequestParam(required = false) Integer mes,
+            @RequestParam(required = false) Integer anio
+    ) {
+        List<Disponibilidad> disponibilidades = dateService.filtrarDisponibilidades(idPsicologo, fecha, mes, anio);
+        return ResponseEntity.ok(disponibilidades);
+    }
+
     @DeleteMapping("/cancelar/{id}")
     public ResponseEntity<String> cancelarCita(@PathVariable Long id) {
         try {
