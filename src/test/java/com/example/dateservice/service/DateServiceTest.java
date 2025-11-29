@@ -115,5 +115,107 @@ class DateServiceTest {
                 .createQuery("SELECT d FROM Disponibilidad d", Disponibilidad.class)
                 .getResultList();
         assertTrue(disponibilidades.isEmpty(), "No debe quedar disponibilidad");
-    }
+    }  
+
+    @Test
+    void testActualizarDisponibilidadExito() {
+    Disponibilidad existente = entityManager.createQuery(
+            "SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo AND d.fecha = :fecha",
+            Disponibilidad.class)
+        .setParameter("idPsicologo", idPsicologo)
+        .setParameter("fecha", LocalDate.of(2025, 11, 10))
+        .getSingleResult();
+
+    Long idDisp = existente.getId();
+
+    Disponibilidad actualizada = new Disponibilidad(
+            idPsicologo,
+            existente.getFecha(),
+            LocalTime.of(8, 0),
+            LocalTime.of(12, 0)
+    );
+
+    Disponibilidad resultado = dateService.actualizarDisponibilidad(idDisp, actualizada);
+
+    assertNotNull(resultado, "Debe retornar la disponibilidad actualizada");
+    assertEquals(LocalTime.of(8, 0), resultado.getHoraInicio());
+    assertEquals(LocalTime.of(12, 0), resultado.getHoraFin());
+
+    Disponibilidad desdeDb = entityManager.find(Disponibilidad.class, idDisp);
+    assertNotNull(desdeDb);
+    assertEquals(LocalTime.of(8, 0), desdeDb.getHoraInicio());
+    assertEquals(LocalTime.of(12, 0), desdeDb.getHoraFin());
+}
+
+@Test
+void testActualizarDisponibilidadConCitasSolapadasLanzaExcepcion() {
+    Date cita = new Date(
+            idPsicologo,
+            400L,
+            LocalDate.of(2025, 11, 10),
+            LocalTime.of(10, 0),
+            LocalTime.of(11, 0)
+    );
+    entityManager.persist(cita);
+
+    Disponibilidad existente = entityManager.createQuery(
+            "SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo AND d.fecha = :fecha",
+            Disponibilidad.class)
+        .setParameter("idPsicologo", idPsicologo)
+        .setParameter("fecha", LocalDate.of(2025, 11, 10))
+        .getSingleResult();
+
+    Long idDisp = existente.getId();
+
+    Disponibilidad propuesta = new Disponibilidad(
+            idPsicologo,
+            existente.getFecha(),
+            LocalTime.of(9, 0),
+            LocalTime.of(11, 30)
+    );
+
+    RuntimeException ex = assertThrows(RuntimeException.class,
+            () -> dateService.actualizarDisponibilidad(idDisp, propuesta));
+    assertTrue(ex.getMessage().contains("No se puede modificar el horario"),
+            "Debe lanzar excepción indicando que existen citas agendadas en ese rango");
+}
+
+@Test
+void testActualizarDisponibilidadHorasInvalidasLanzaExcepcion() {
+    // Obtener la disponibilidad existente
+    Disponibilidad existente = entityManager.createQuery(
+            "SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo AND d.fecha = :fecha",
+            Disponibilidad.class)
+        .setParameter("idPsicologo", idPsicologo)
+        .setParameter("fecha", LocalDate.of(2025, 11, 10))
+        .getSingleResult();
+
+    Long idDisp = existente.getId();
+
+    // Caso 1: horaInicio igual a horaFin
+    Disponibilidad igualHoras = new Disponibilidad(
+            idPsicologo,
+            existente.getFecha(),
+            LocalTime.of(10, 0),
+            LocalTime.of(10, 0)
+    );
+
+    RuntimeException ex1 = assertThrows(RuntimeException.class,
+            () -> dateService.actualizarDisponibilidad(idDisp, igualHoras));
+    assertTrue(ex1.getMessage().contains("La hora de inicio debe ser anterior"),
+            "Debe lanzar excepción cuando horaInicio == horaFin");
+
+    // Caso 2: horaInicio después de horaFin
+    Disponibilidad horasInvertidas = new Disponibilidad(
+            idPsicologo,
+            existente.getFecha(),
+            LocalTime.of(14, 0),
+            LocalTime.of(13, 0)
+    );
+
+    RuntimeException ex2 = assertThrows(RuntimeException.class,
+            () -> dateService.actualizarDisponibilidad(idDisp, horasInvertidas));
+    assertTrue(ex2.getMessage().contains("La hora de inicio debe ser anterior"),
+            "Debe lanzar excepción cuando horaInicio > horaFin");
+}
 }
