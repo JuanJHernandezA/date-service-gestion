@@ -56,18 +56,18 @@ public class DateService {
 
         // Verificar si ya existe una cita en el mismo horario
         List<Date> citasExistentes = entityManager.createQuery(
-                "SELECT c FROM Date c " +
-                        "WHERE c.idPsicologo = :idPsicologo " +
-                        "AND c.fecha = :fecha " +
-                        "AND c.horaInicio < :horaFin " +
-                        "AND c.horaFin > :horaInicio",
-                Date.class
-        )
-        .setParameter("idPsicologo", nuevaCita.getIdPsicologo())
-        .setParameter("fecha", nuevaCita.getFecha())
-        .setParameter("horaInicio", nuevaCita.getHoraInicio())
-        .setParameter("horaFin", nuevaCita.getHoraFin())
-        .getResultList();
+                        "SELECT c FROM Date c " +
+                                "WHERE c.idPsicologo = :idPsicologo " +
+                                "AND c.fecha = :fecha " +
+                                "AND c.horaInicio < :horaFin " +
+                                "AND c.horaFin > :horaInicio",
+                        Date.class
+                )
+                .setParameter("idPsicologo", nuevaCita.getIdPsicologo())
+                .setParameter("fecha", nuevaCita.getFecha())
+                .setParameter("horaInicio", nuevaCita.getHoraInicio())
+                .setParameter("horaFin", nuevaCita.getHoraFin())
+                .getResultList();
 
         if (!citasExistentes.isEmpty()) {
             System.out.println("Ya existe una cita en este horario.");
@@ -76,19 +76,19 @@ public class DateService {
 
         // Buscar disponibilidad que cubra completamente la franja de la cita
         List<Disponibilidad> resultados = entityManager.createQuery(
-                "SELECT d FROM Disponibilidad d " +
-                        "WHERE d.idPsicologo = :idPsicologo " +
-                        "AND d.fecha = :fecha " +
-                        "AND d.horaInicio <= :horaInicio " +
-                        "AND d.horaFin >= :horaFin",
-                Disponibilidad.class
-        )
-        .setParameter("idPsicologo", nuevaCita.getIdPsicologo())
-        .setParameter("fecha", nuevaCita.getFecha())
-        .setParameter("horaInicio", nuevaCita.getHoraInicio())
-        .setParameter("horaFin", nuevaCita.getHoraFin())
-        .setMaxResults(1)
-        .getResultList();
+                        "SELECT d FROM Disponibilidad d " +
+                                "WHERE d.idPsicologo = :idPsicologo " +
+                                "AND d.fecha = :fecha " +
+                                "AND d.horaInicio <= :horaInicio " +
+                                "AND d.horaFin >= :horaFin",
+                        Disponibilidad.class
+                )
+                .setParameter("idPsicologo", nuevaCita.getIdPsicologo())
+                .setParameter("fecha", nuevaCita.getFecha())
+                .setParameter("horaInicio", nuevaCita.getHoraInicio())
+                .setParameter("horaFin", nuevaCita.getHoraFin())
+                .setMaxResults(1)
+                .getResultList();
 
         if (resultados.isEmpty()) {
             System.out.println("No existe disponibilidad para esta cita.");
@@ -137,25 +137,190 @@ public class DateService {
         dateRepository.delete(cita);
     }
 
+    @Transactional
+    public Date modificarCita(Long id, Date citaModificada) {
+        System.out.println("Intentando modificar cita con ID: " + id);
+
+        Date citaExistente = dateRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("La cita no existe"));
+
+        if (citaModificada.getIdPsicologo() == null) {
+            throw new RuntimeException("El ID del psicólogo es requerido.");
+        }
+
+        if (citaModificada.getIdCliente() == null) {
+            throw new RuntimeException("El ID del cliente es requerido.");
+        }
+
+        if (citaModificada.getFecha() == null) {
+            throw new RuntimeException("La fecha es requerida.");
+        }
+
+        if (citaModificada.getHoraInicio() == null || citaModificada.getHoraFin() == null) {
+            throw new RuntimeException("La hora de inicio y fin son requeridas.");
+        }
+
+        if (!citaModificada.getHoraInicio().isBefore(citaModificada.getHoraFin())) {
+            throw new RuntimeException("La hora de inicio debe ser anterior a la hora de fin.");
+        }
+
+        boolean horarioCambio = !citaExistente.getFecha().equals(citaModificada.getFecha()) ||
+                !citaExistente.getHoraInicio().equals(citaModificada.getHoraInicio()) ||
+                !citaExistente.getHoraFin().equals(citaModificada.getHoraFin());
+
+        if (horarioCambio) {
+
+            List<Disponibilidad> disponibilidadesAdyacentes = entityManager.createQuery(
+                            "SELECT d FROM Disponibilidad d " +
+                                    "WHERE d.idPsicologo = :idPsicologo " +
+                                    "AND d.fecha = :fecha " +
+                                    "AND ((d.horaFin = :horaInicio) OR (d.horaInicio = :horaFin))",
+                            Disponibilidad.class
+                    )
+                    .setParameter("idPsicologo", citaExistente.getIdPsicologo())
+                    .setParameter("fecha", citaExistente.getFecha())
+                    .setParameter("horaInicio", citaExistente.getHoraInicio())
+                    .setParameter("horaFin", citaExistente.getHoraFin())
+                    .getResultList();
+
+            Disponibilidad disponibilidadAntes = null;
+            Disponibilidad disponibilidadDespues = null;
+
+            for (Disponibilidad disp : disponibilidadesAdyacentes) {
+                if (disp.getHoraFin().equals(citaExistente.getHoraInicio())) {
+                    disponibilidadAntes = disp;
+                }
+                if (disp.getHoraInicio().equals(citaExistente.getHoraFin())) {
+                    disponibilidadDespues = disp;
+                }
+            }
+
+            if (disponibilidadAntes != null && disponibilidadDespues != null) {
+
+                disponibilidadAntes.setHoraFin(disponibilidadDespues.getHoraFin());
+                entityManager.merge(disponibilidadAntes);
+                entityManager.remove(disponibilidadDespues);
+            } else if (disponibilidadAntes != null) {
+
+                disponibilidadAntes.setHoraFin(citaExistente.getHoraFin());
+                entityManager.merge(disponibilidadAntes);
+            } else if (disponibilidadDespues != null) {
+
+                disponibilidadDespues.setHoraInicio(citaExistente.getHoraInicio());
+                entityManager.merge(disponibilidadDespues);
+            } else {
+
+                Disponibilidad nuevaDisponibilidad = new Disponibilidad(
+                        citaExistente.getIdPsicologo(),
+                        citaExistente.getFecha(),
+                        citaExistente.getHoraInicio(),
+                        citaExistente.getHoraFin()
+                );
+                entityManager.persist(nuevaDisponibilidad);
+            }
+
+            List<Date> citasExistentes = entityManager.createQuery(
+                            "SELECT c FROM Date c " +
+                                    "WHERE c.idPsicologo = :idPsicologo " +
+                                    "AND c.fecha = :fecha " +
+                                    "AND c.horaInicio < :horaFin " +
+                                    "AND c.horaFin > :horaInicio " +
+                                    "AND c.id != :idCitaActual",
+                            Date.class
+                    )
+                    .setParameter("idPsicologo", citaModificada.getIdPsicologo())
+                    .setParameter("fecha", citaModificada.getFecha())
+                    .setParameter("horaInicio", citaModificada.getHoraInicio())
+                    .setParameter("horaFin", citaModificada.getHoraFin())
+                    .setParameter("idCitaActual", id)
+                    .getResultList();
+
+            if (!citasExistentes.isEmpty()) {
+                System.out.println("Ya existe una cita en el nuevo horario.");
+                throw new RuntimeException("Ya existe una cita agendada en el nuevo horario.");
+            }
+
+            List<Disponibilidad> resultados = entityManager.createQuery(
+                            "SELECT d FROM Disponibilidad d " +
+                                    "WHERE d.idPsicologo = :idPsicologo " +
+                                    "AND d.fecha = :fecha " +
+                                    "AND d.horaInicio <= :horaInicio " +
+                                    "AND d.horaFin >= :horaFin",
+                            Disponibilidad.class
+                    )
+                    .setParameter("idPsicologo", citaModificada.getIdPsicologo())
+                    .setParameter("fecha", citaModificada.getFecha())
+                    .setParameter("horaInicio", citaModificada.getHoraInicio())
+                    .setParameter("horaFin", citaModificada.getHoraFin())
+                    .setMaxResults(1)
+                    .getResultList();
+
+            if (resultados.isEmpty()) {
+                System.out.println("No existe disponibilidad para el nuevo horario.");
+                throw new RuntimeException("No hay disponibilidad para el nuevo horario seleccionado.");
+            }
+
+            Disponibilidad disp = resultados.get(0);
+            System.out.println("Disponibilidad encontrada para nuevo horario: " + disp);
+
+            entityManager.remove(disp);
+            System.out.println("Disponibilidad eliminada: " + disp.getId());
+
+            if (disp.getHoraInicio().isBefore(citaModificada.getHoraInicio())) {
+                Disponibilidad antes = new Disponibilidad(
+                        disp.getIdPsicologo(),
+                        disp.getFecha(),
+                        disp.getHoraInicio(),
+                        citaModificada.getHoraInicio()
+                );
+                entityManager.persist(antes);
+                System.out.println("Nueva disponibilidad (antes): " + antes);
+            }
+
+            if (disp.getHoraFin().isAfter(citaModificada.getHoraFin())) {
+                Disponibilidad despues = new Disponibilidad(
+                        disp.getIdPsicologo(),
+                        disp.getFecha(),
+                        citaModificada.getHoraFin(),
+                        disp.getHoraFin()
+                );
+                entityManager.persist(despues);
+                System.out.println("Nueva disponibilidad (después): " + despues);
+            }
+        }
+
+        citaExistente.setIdPsicologo(citaModificada.getIdPsicologo());
+        citaExistente.setIdCliente(citaModificada.getIdCliente());
+        citaExistente.setFecha(citaModificada.getFecha());
+        citaExistente.setHoraInicio(citaModificada.getHoraInicio());
+        citaExistente.setHoraFin(citaModificada.getHoraFin());
+
+
+        Date citaActualizada = dateRepository.save(citaExistente);
+        System.out.println("Cita modificada exitosamente: " + citaActualizada);
+
+        return citaActualizada;
+    }
+
 
     public List<Date> listarCitasPorPsicologo(Long idPsicologo, LocalDate fecha) {
         return entityManager.createQuery(
-                "SELECT c FROM Date c WHERE c.idPsicologo = :idPsicologo AND c.fecha = :fecha",
-                Date.class
-        )
-        .setParameter("idPsicologo", idPsicologo)
-        .setParameter("fecha", fecha)
-        .getResultList();
+                        "SELECT c FROM Date c WHERE c.idPsicologo = :idPsicologo AND c.fecha = :fecha",
+                        Date.class
+                )
+                .setParameter("idPsicologo", idPsicologo)
+                .setParameter("fecha", fecha)
+                .getResultList();
     }
 
     public List<Disponibilidad> listarDisponibilidades(Long idPsicologo, LocalDate fecha) {
         return entityManager.createQuery(
-                "SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo AND d.fecha = :fecha",
-                Disponibilidad.class
-        )
-        .setParameter("idPsicologo", idPsicologo)
-        .setParameter("fecha", fecha)
-        .getResultList();
+                        "SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo AND d.fecha = :fecha",
+                        Disponibilidad.class
+                )
+                .setParameter("idPsicologo", idPsicologo)
+                .setParameter("fecha", fecha)
+                .getResultList();
     }
 
     public List<Date> listarTodasLasCitas() {
@@ -198,11 +363,11 @@ public class DateService {
 
     public List<Date> listarCitasPorCliente(Long idCliente) {
         return entityManager.createQuery(
-                "SELECT c FROM Date c WHERE c.idCliente = :idCliente ORDER BY c.fecha DESC, c.horaInicio DESC",
-                Date.class
-        )
-        .setParameter("idCliente", idCliente)
-        .getResultList();
+                        "SELECT c FROM Date c WHERE c.idCliente = :idCliente ORDER BY c.fecha DESC, c.horaInicio DESC",
+                        Date.class
+                )
+                .setParameter("idCliente", idCliente)
+                .getResultList();
     }
 
     public List<Disponibilidad> listarTodasLasDisponibilidades() {
@@ -236,37 +401,37 @@ public class DateService {
 
         // Validar que horaInicio sea menor que horaFin
         if (disponibilidadActualizada.getHoraInicio().isAfter(disponibilidadActualizada.getHoraFin()) ||
-            disponibilidadActualizada.getHoraInicio().equals(disponibilidadActualizada.getHoraFin())) {
+                disponibilidadActualizada.getHoraInicio().equals(disponibilidadActualizada.getHoraFin())) {
             throw new RuntimeException("La hora de inicio debe ser anterior a la hora de fin");
         }
 
         // Obtener todas las citas del psicólogo en ese día que se solapan con el nuevo rango de disponibilidad
         // Solo verificamos citas que se solapan, no todas las citas del día
         List<Date> citasSolapadas = entityManager.createQuery(
-                "SELECT c FROM Date c " +
-                        "WHERE c.idPsicologo = :idPsicologo " +
-                        "AND c.fecha = :fecha " +
-                        "AND ((c.horaInicio < :horaFin AND c.horaFin > :horaInicio))",
-                Date.class
-        )
-        .setParameter("idPsicologo", disponibilidadActualizada.getIdPsicologo())
-        .setParameter("fecha", disponibilidadActualizada.getFecha())
-        .setParameter("horaInicio", disponibilidadActualizada.getHoraInicio())
-        .setParameter("horaFin", disponibilidadActualizada.getHoraFin())
-        .getResultList();
+                        "SELECT c FROM Date c " +
+                                "WHERE c.idPsicologo = :idPsicologo " +
+                                "AND c.fecha = :fecha " +
+                                "AND ((c.horaInicio < :horaFin AND c.horaFin > :horaInicio))",
+                        Date.class
+                )
+                .setParameter("idPsicologo", disponibilidadActualizada.getIdPsicologo())
+                .setParameter("fecha", disponibilidadActualizada.getFecha())
+                .setParameter("horaInicio", disponibilidadActualizada.getHoraInicio())
+                .setParameter("horaFin", disponibilidadActualizada.getHoraFin())
+                .getResultList();
 
         // Validar que todas las citas que se solapan estén completamente dentro del nuevo rango
         // Esto permite extender la disponibilidad (aumentar horas) siempre que todas las citas solapadas estén dentro
         for (Date cita : citasSolapadas) {
             // Verificar si la cita está completamente dentro del nuevo rango
             // La cita debe empezar después o igual al inicio y terminar antes o igual al fin
-            boolean citaDentroDelRango = (cita.getHoraInicio().isAfter(disponibilidadActualizada.getHoraInicio()) || 
-                                          cita.getHoraInicio().equals(disponibilidadActualizada.getHoraInicio())) &&
-                                         (cita.getHoraFin().isBefore(disponibilidadActualizada.getHoraFin()) || 
-                                          cita.getHoraFin().equals(disponibilidadActualizada.getHoraFin()));
-            
+            boolean citaDentroDelRango = (cita.getHoraInicio().isAfter(disponibilidadActualizada.getHoraInicio()) ||
+                    cita.getHoraInicio().equals(disponibilidadActualizada.getHoraInicio())) &&
+                    (cita.getHoraFin().isBefore(disponibilidadActualizada.getHoraFin()) ||
+                            cita.getHoraFin().equals(disponibilidadActualizada.getHoraFin()));
+
             if (!citaDentroDelRango) {
-                throw new RuntimeException("No se puede modificar el horario porque existe una cita agendada que no está completamente dentro del nuevo rango. La cita está programada de " + 
+                throw new RuntimeException("No se puede modificar el horario porque existe una cita agendada que no está completamente dentro del nuevo rango. La cita está programada de " +
                         cita.getHoraInicio() + " a " + cita.getHoraFin() + ". El nuevo rango es de " +
                         disponibilidadActualizada.getHoraInicio() + " a " + disponibilidadActualizada.getHoraFin());
             }
@@ -303,19 +468,19 @@ public class DateService {
 
         // Verificar si ya existe una disponibilidad que se solape
         List<Disponibilidad> disponibilidadesExistentes = entityManager.createQuery(
-                "SELECT d FROM Disponibilidad d " +
-                        "WHERE d.idPsicologo = :idPsicologo " +
-                        "AND d.fecha = :fecha " +
-                        "AND ((d.horaInicio <= :horaInicio AND d.horaFin > :horaInicio) " +
-                        "OR (d.horaInicio < :horaFin AND d.horaFin >= :horaFin) " +
-                        "OR (d.horaInicio >= :horaInicio AND d.horaFin <= :horaFin))",
-                Disponibilidad.class
-        )
-        .setParameter("idPsicologo", nuevaDisponibilidad.getIdPsicologo())
-        .setParameter("fecha", nuevaDisponibilidad.getFecha())
-        .setParameter("horaInicio", nuevaDisponibilidad.getHoraInicio())
-        .setParameter("horaFin", nuevaDisponibilidad.getHoraFin())
-        .getResultList();
+                        "SELECT d FROM Disponibilidad d " +
+                                "WHERE d.idPsicologo = :idPsicologo " +
+                                "AND d.fecha = :fecha " +
+                                "AND ((d.horaInicio <= :horaInicio AND d.horaFin > :horaInicio) " +
+                                "OR (d.horaInicio < :horaFin AND d.horaFin >= :horaFin) " +
+                                "OR (d.horaInicio >= :horaInicio AND d.horaFin <= :horaFin))",
+                        Disponibilidad.class
+                )
+                .setParameter("idPsicologo", nuevaDisponibilidad.getIdPsicologo())
+                .setParameter("fecha", nuevaDisponibilidad.getFecha())
+                .setParameter("horaInicio", nuevaDisponibilidad.getHoraInicio())
+                .setParameter("horaFin", nuevaDisponibilidad.getHoraFin())
+                .getResultList();
 
         if (!disponibilidadesExistentes.isEmpty()) {
             System.out.println("Ya existe una disponibilidad que se solapa en este horario.");
@@ -324,18 +489,18 @@ public class DateService {
 
         // Verificar si hay citas existentes en este horario que entrarían en conflicto
         List<Date> citasExistentes = entityManager.createQuery(
-                "SELECT c FROM Date c " +
-                        "WHERE c.idPsicologo = :idPsicologo " +
-                        "AND c.fecha = :fecha " +
-                        "AND c.horaInicio < :horaFin " +
-                        "AND c.horaFin > :horaInicio",
-                Date.class
-        )
-        .setParameter("idPsicologo", nuevaDisponibilidad.getIdPsicologo())
-        .setParameter("fecha", nuevaDisponibilidad.getFecha())
-        .setParameter("horaInicio", nuevaDisponibilidad.getHoraInicio())
-        .setParameter("horaFin", nuevaDisponibilidad.getHoraFin())
-        .getResultList();
+                        "SELECT c FROM Date c " +
+                                "WHERE c.idPsicologo = :idPsicologo " +
+                                "AND c.fecha = :fecha " +
+                                "AND c.horaInicio < :horaFin " +
+                                "AND c.horaFin > :horaInicio",
+                        Date.class
+                )
+                .setParameter("idPsicologo", nuevaDisponibilidad.getIdPsicologo())
+                .setParameter("fecha", nuevaDisponibilidad.getFecha())
+                .setParameter("horaInicio", nuevaDisponibilidad.getHoraInicio())
+                .setParameter("horaFin", nuevaDisponibilidad.getHoraFin())
+                .getResultList();
 
         if (!citasExistentes.isEmpty()) {
             System.out.println("Ya existen citas agendadas en este horario.");
@@ -348,7 +513,7 @@ public class DateService {
 
         return nuevaDisponibilidad;
     }
-    
+
 }
 
 
