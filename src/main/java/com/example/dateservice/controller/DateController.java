@@ -19,7 +19,7 @@ public class DateController {
     @Autowired
     private DateService dateService;
 
-    
+
     @PostMapping("/agendar")
     public ResponseEntity<String> agendarCita(@RequestBody Date nuevaCita) {
         try {
@@ -82,6 +82,19 @@ public class DateController {
         }
     }
 
+    @PutMapping("/modificar/{id}")
+    public ResponseEntity<?> modificarCita(
+            @PathVariable Long id,
+            @RequestBody Date citaModificada
+    ) {
+        try {
+            Date citaActualizada = dateService.modificarCita(id, citaModificada);
+            return ResponseEntity.ok(citaActualizada);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error al modificar cita: " + e.getMessage());
+        }
+    }
+
 
     @GetMapping("/todas")
     public ResponseEntity<List<Date>> listarTodasLasCitas() {
@@ -123,11 +136,11 @@ public class DateController {
                 horaInicio = java.time.LocalTime.parse(body.get("horaInicio").toString());
                 horaFin = java.time.LocalTime.parse(body.get("horaFin").toString());
             }
-            
+
             if (idPsicologo == null || fechaInicio == null || fechaFin == null || horaInicio == null || horaFin == null) {
                 return ResponseEntity.badRequest().body("Todos los parámetros son requeridos: idPsicologo, fechaInicio, fechaFin, horaInicio, horaFin");
             }
-            
+
             dateService.crearDisponibilidadesMasivas(idPsicologo, fechaInicio, fechaFin, horaInicio, horaFin);
             return ResponseEntity.ok("Disponibilidades creadas exitosamente");
         } catch (Exception e) {
