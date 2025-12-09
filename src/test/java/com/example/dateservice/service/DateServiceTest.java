@@ -157,6 +157,7 @@ void testActualizarDisponibilidadConCitasSolapadasLanzaExcepcion() {
             LocalTime.of(11, 0)
     );
     entityManager.persist(cita);
+    entityManager.flush();
 
     Disponibilidad existente = entityManager.createQuery(
             "SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo AND d.fecha = :fecha",
@@ -167,11 +168,13 @@ void testActualizarDisponibilidadConCitasSolapadasLanzaExcepcion() {
 
     Long idDisp = existente.getId();
 
+    // Intentar reducir la disponibilidad de 9:00-13:00 a 9:00-10:30
+    // La cita está de 10:00-11:00, por lo que quedaría fuera del nuevo rango (termina a las 10:30)
     Disponibilidad propuesta = new Disponibilidad(
             idPsicologo,
             existente.getFecha(),
             LocalTime.of(9, 0),
-            LocalTime.of(11, 30)
+            LocalTime.of(10, 30)
     );
 
     RuntimeException ex = assertThrows(RuntimeException.class,
@@ -218,4 +221,180 @@ void testActualizarDisponibilidadHorasInvalidasLanzaExcepcion() {
     assertTrue(ex2.getMessage().contains("La hora de inicio debe ser anterior"),
             "Debe lanzar excepción cuando horaInicio > horaFin");
 }
+
+    // Tests para crearDisponibilidad
+    @Test
+    void testCrearDisponibilidadExito() {
+        Disponibilidad nueva = new Disponibilidad(
+                2L,
+                LocalDate.of(2025, 12, 15),
+                LocalTime.of(10, 0),
+                LocalTime.of(12, 0)
+        );
+
+        Disponibilidad resultado = dateService.crearDisponibilidad(nueva);
+
+        assertNotNull(resultado, "Debe retornar la disponibilidad creada");
+        assertNotNull(resultado.getId(), "Debe tener un ID asignado");
+        assertEquals(2L, resultado.getIdPsicologo());
+        assertEquals(LocalDate.of(2025, 12, 15), resultado.getFecha());
+        assertEquals(LocalTime.of(10, 0), resultado.getHoraInicio());
+        assertEquals(LocalTime.of(12, 0), resultado.getHoraFin());
+
+        Disponibilidad desdeDb = entityManager.find(Disponibilidad.class, resultado.getId());
+        assertNotNull(desdeDb, "Debe estar persistida en la base de datos");
+    }
+
+    @Test
+    void testCrearDisponibilidadConHoraInicioNulaLanzaExcepcion() {
+        Disponibilidad nueva = new Disponibilidad(
+                2L,
+                LocalDate.of(2025, 12, 15),
+                null,
+                LocalTime.of(12, 0)
+        );
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> dateService.crearDisponibilidad(nueva));
+        assertTrue(ex.getMessage().contains("La hora de inicio y fin son requeridas"),
+                "Debe lanzar excepción cuando horaInicio es null");
+    }
+
+    @Test
+    void testCrearDisponibilidadConHoraFinNulaLanzaExcepcion() {
+        Disponibilidad nueva = new Disponibilidad(
+                2L,
+                LocalDate.of(2025, 12, 15),
+                LocalTime.of(10, 0),
+                null
+        );
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> dateService.crearDisponibilidad(nueva));
+        assertTrue(ex.getMessage().contains("La hora de inicio y fin son requeridas"),
+                "Debe lanzar excepción cuando horaFin es null");
+    }
+
+    @Test
+    void testCrearDisponibilidadConHoraInicioMayorQueHoraFinLanzaExcepcion() {
+        Disponibilidad nueva = new Disponibilidad(
+                2L,
+                LocalDate.of(2025, 12, 15),
+                LocalTime.of(14, 0),
+                LocalTime.of(12, 0)
+        );
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> dateService.crearDisponibilidad(nueva));
+        assertTrue(ex.getMessage().contains("La hora de inicio debe ser anterior"),
+                "Debe lanzar excepción cuando horaInicio > horaFin");
+    }
+
+    @Test
+    void testCrearDisponibilidadConHoraInicioIgualAHoraFinLanzaExcepcion() {
+        Disponibilidad nueva = new Disponibilidad(
+                2L,
+                LocalDate.of(2025, 12, 15),
+                LocalTime.of(12, 0),
+                LocalTime.of(12, 0)
+        );
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> dateService.crearDisponibilidad(nueva));
+        assertTrue(ex.getMessage().contains("La hora de inicio debe ser anterior"),
+                "Debe lanzar excepción cuando horaInicio == horaFin");
+    }
+
+    // Tests para crearDisponibilidadesMasivas
+    @Test
+    void testCrearDisponibilidadesMasivasExito() {
+        LocalDate fechaInicio = LocalDate.of(2025, 12, 1);
+        LocalDate fechaFin = LocalDate.of(2025, 12, 5);
+        LocalTime horaInicio = LocalTime.of(9, 0);
+        LocalTime horaFin = LocalTime.of(13, 0);
+
+        dateService.crearDisponibilidadesMasivas(3L, fechaInicio, fechaFin, horaInicio, horaFin);
+
+        List<Disponibilidad> disponibilidades = entityManager
+                .createQuery("SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo ORDER BY d.fecha",
+                        Disponibilidad.class)
+                .setParameter("idPsicologo", 3L)
+                .getResultList();
+
+        assertEquals(5, disponibilidades.size(), "Debe crear 5 disponibilidades (lunes a viernes)");
+        
+        for (Disponibilidad disp : disponibilidades) {
+            assertEquals(3L, disp.getIdPsicologo());
+            assertEquals(horaInicio, disp.getHoraInicio());
+            assertEquals(horaFin, disp.getHoraFin());
+            assertTrue(disp.getFecha().getDayOfWeek().getValue() >= 1 && 
+                      disp.getFecha().getDayOfWeek().getValue() <= 5,
+                      "Solo debe crear disponibilidades en días laborables");
+        }
+    }
+
+    @Test
+    void testCrearDisponibilidadesMasivasSoloDiasLaborables() {
+        LocalDate fechaInicio = LocalDate.of(2025, 12, 6); // Sábado
+        LocalDate fechaFin = LocalDate.of(2025, 12, 8); // Lunes
+        LocalTime horaInicio = LocalTime.of(9, 0);
+        LocalTime horaFin = LocalTime.of(13, 0);
+
+        dateService.crearDisponibilidadesMasivas(4L, fechaInicio, fechaFin, horaInicio, horaFin);
+
+        List<Disponibilidad> disponibilidades = entityManager
+                .createQuery("SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo ORDER BY d.fecha",
+                        Disponibilidad.class)
+                .setParameter("idPsicologo", 4L)
+                .getResultList();
+
+        assertEquals(1, disponibilidades.size(), "Debe crear solo 1 disponibilidad (lunes, salta sábado y domingo)");
+        assertEquals(LocalDate.of(2025, 12, 8), disponibilidades.get(0).getFecha(), "Debe ser el lunes");
+    }
+
+    @Test
+    void testCrearDisponibilidadesMasivasConHoraInicioNulaLanzaExcepcion() {
+        LocalDate fechaInicio = LocalDate.of(2025, 12, 1);
+        LocalDate fechaFin = LocalDate.of(2025, 12, 5);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> dateService.crearDisponibilidadesMasivas(5L, fechaInicio, fechaFin, null, LocalTime.of(13, 0)));
+        assertTrue(ex.getMessage().contains("La hora de inicio y fin son requeridas"),
+                "Debe lanzar excepción cuando horaInicio es null");
+    }
+
+    @Test
+    void testCrearDisponibilidadesMasivasConHoraFinNulaLanzaExcepcion() {
+        LocalDate fechaInicio = LocalDate.of(2025, 12, 1);
+        LocalDate fechaFin = LocalDate.of(2025, 12, 5);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> dateService.crearDisponibilidadesMasivas(5L, fechaInicio, fechaFin, LocalTime.of(9, 0), null));
+        assertTrue(ex.getMessage().contains("La hora de inicio y fin son requeridas"),
+                "Debe lanzar excepción cuando horaFin es null");
+    }
+
+    @Test
+    void testCrearDisponibilidadesMasivasConHorasInvalidasLanzaExcepcion() {
+        LocalDate fechaInicio = LocalDate.of(2025, 12, 1);
+        LocalDate fechaFin = LocalDate.of(2025, 12, 5);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> dateService.crearDisponibilidadesMasivas(5L, fechaInicio, fechaFin, 
+                        LocalTime.of(14, 0), LocalTime.of(12, 0)));
+        assertTrue(ex.getMessage().contains("La hora de inicio debe ser anterior"),
+                "Debe lanzar excepción cuando horaInicio > horaFin");
+    }
+
+    @Test
+    void testCrearDisponibilidadesMasivasConHoraInicioIgualAHoraFinLanzaExcepcion() {
+        LocalDate fechaInicio = LocalDate.of(2025, 12, 1);
+        LocalDate fechaFin = LocalDate.of(2025, 12, 5);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> dateService.crearDisponibilidadesMasivas(5L, fechaInicio, fechaFin, 
+                        LocalTime.of(12, 0), LocalTime.of(12, 0)));
+        assertTrue(ex.getMessage().contains("La hora de inicio debe ser anterior"),
+                "Debe lanzar excepción cuando horaInicio == horaFin");
+    }
 }
