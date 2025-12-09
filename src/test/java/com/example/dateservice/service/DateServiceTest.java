@@ -157,6 +157,7 @@ void testActualizarDisponibilidadConCitasSolapadasLanzaExcepcion() {
             LocalTime.of(11, 0)
     );
     entityManager.persist(cita);
+    entityManager.flush();
 
     Disponibilidad existente = entityManager.createQuery(
             "SELECT d FROM Disponibilidad d WHERE d.idPsicologo = :idPsicologo AND d.fecha = :fecha",
@@ -167,11 +168,13 @@ void testActualizarDisponibilidadConCitasSolapadasLanzaExcepcion() {
 
     Long idDisp = existente.getId();
 
+    // Intentar reducir la disponibilidad de 9:00-13:00 a 9:00-10:30
+    // La cita está de 10:00-11:00, por lo que quedaría fuera del nuevo rango (termina a las 10:30)
     Disponibilidad propuesta = new Disponibilidad(
             idPsicologo,
             existente.getFecha(),
             LocalTime.of(9, 0),
-            LocalTime.of(11, 30)
+            LocalTime.of(10, 30)
     );
 
     RuntimeException ex = assertThrows(RuntimeException.class,
