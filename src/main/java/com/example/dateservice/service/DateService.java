@@ -376,11 +376,29 @@ public class DateService {
 
     @Transactional
     public Disponibilidad crearDisponibilidad(Disponibilidad disponibilidad) {
+        // Validar que horaInicio sea menor que horaFin
+        if (disponibilidad.getHoraInicio() == null || disponibilidad.getHoraFin() == null) {
+            throw new RuntimeException("La hora de inicio y fin son requeridas.");
+        }
+        
+        if (!disponibilidad.getHoraInicio().isBefore(disponibilidad.getHoraFin())) {
+            throw new RuntimeException("La hora de inicio debe ser anterior a la hora de fin.");
+        }
+        
         return disponibilidadRepository.save(disponibilidad);
     }
 
     @Transactional
     public void crearDisponibilidadesMasivas(Long idPsicologo, LocalDate fechaInicio, LocalDate fechaFin, LocalTime horaInicio, LocalTime horaFin) {
+        // Validar que horaInicio sea menor que horaFin
+        if (horaInicio == null || horaFin == null) {
+            throw new RuntimeException("La hora de inicio y fin son requeridas.");
+        }
+        
+        if (!horaInicio.isBefore(horaFin)) {
+            throw new RuntimeException("La hora de inicio debe ser anterior a la hora de fin.");
+        }
+        
         LocalDate fechaActual = fechaInicio;
         while (!fechaActual.isAfter(fechaFin)) {
             // Solo crear disponibilidades para días laborables (lunes a viernes)

@@ -109,12 +109,12 @@ public class DateController {
     }
 
     @PostMapping("/disponibilidad")
-    public ResponseEntity<Disponibilidad> crearDisponibilidad(@RequestBody Disponibilidad disponibilidad) {
+    public ResponseEntity<?> crearDisponibilidad(@RequestBody Disponibilidad disponibilidad) {
         try {
             Disponibilidad nueva = dateService.crearDisponibilidad(disponibilidad);
             return ResponseEntity.ok(nueva);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error al crear disponibilidad: " + e.getMessage());
         }
     }
 
